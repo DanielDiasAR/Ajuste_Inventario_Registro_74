@@ -1,0 +1,18 @@
+{
+  "name": "ajuste_inventario",
+  "version": "1.0.0",
+  "description": "Aplicativo para Ajuste de Inventário",
+  "main": "main.js",
+  "scripts": {
+  "start": "electron .",
+  "build": "electron-packager . AjusteInventario --platform=win32 --arch=x64 --out=dist --overwrite"
+},
+  "keywords": [],
+  "author": "Seu Nome",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^41.0.3",
+    "electron-packager": "^17.1.2"
+  }
+}
