@@ -2,4 +2,4 @@ Esta aplicação é destinada a ajustes no valor total do inventário, pelo regi
 temos a ferramente onde selecionamos um arquivo txt, a ferramenta lê e soma o total do registro 74, o usuário tem um campo onde informa o valor desejado e a aplicação altera os valores e retorna com 
 uma janela para salvar o arquivo mofidicado.
 
-Tecnologias utilizadas: HTML, JS, NodeJS, Electron.
+Tecnologias utilizadas: HTML, JS, NodeJS, Electron(para que possamos criar o executável que funcione como um aplicativo de desktop instalado no computador, em vez de apenas um site que abre no navegador).
