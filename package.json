@@ -4,9 +4,9 @@
   "description": "Aplicativo para Ajuste de Inventário",
   "main": "main.js",
   "scripts": {
-  "start": "electron .",
-  "build": "electron-packager . AjusteInventario --platform=win32 --arch=x64 --out=dist --overwrite"
-},
+    "start": "electron .",
+    "build": "electron-packager ./ AjusteInventario --platform=win32 --arch=x64 --out=dist --overwrite --ignore=dist"
+  },
   "keywords": [],
   "author": "Seu Nome",
   "license": "ISC",
