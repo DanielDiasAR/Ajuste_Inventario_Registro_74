@@ -1,5 +1,33 @@
-document.getElementById('fileInput').addEventListener('change', function(e) {
-    const file = e.target.files[0];
+const fileInput = document.getElementById('fileInput');
+if (fileInput && !document.querySelector('input[name="tipoAjuste"]')) {
+    const opcoesDiv = document.createElement('div');
+    opcoesDiv.className = 'opcoes-ajuste';
+    opcoesDiv.style.marginBottom = '15px';
+    opcoesDiv.innerHTML = `
+        <label style="cursor: pointer; font-size: 14px;">
+            <input type="radio" name="tipoAjuste" value="valor" checked onchange="atualizarModoAjuste()">
+            Ajuste pela Soma (Valor)
+        </label>
+        <label style="margin-left: 15px; cursor: pointer; font-size: 14px;">
+            <input type="radio" name="tipoAjuste" value="quantidade" onchange="atualizarModoAjuste()">
+            Ajuste pela Quantidade
+        </label>
+    `;
+    fileInput.parentNode.insertBefore(opcoesDiv, fileInput);
+}
+
+function getModoAjuste() {
+    const selecionado = document.querySelector('input[name="tipoAjuste"]:checked');
+    return selecionado ? selecionado.value : 'valor';
+}
+
+window.atualizarModoAjuste = function() {
+
+};
+
+function atualizarSomaOriginal() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput ? fileInput.files[0] : null;
     if (!file) {
         document.getElementById('somaOriginal').value = '';
         return;
@@ -23,6 +51,10 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
         document.getElementById('somaOriginal').value = soma.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     };
     reader.readAsText(file);
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    atualizarSomaOriginal();
 });
 
 document.getElementById('somaDesejada').addEventListener('input', function(e) {
@@ -31,6 +63,7 @@ document.getElementById('somaDesejada').addEventListener('input', function(e) {
         e.target.value = '';
         return;
     }
+    
     valor = parseInt(valor, 10) / 100;
     e.target.value = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 });
@@ -50,13 +83,13 @@ function processarArquivo() {
         return;
     }
 
-    function parseMoeda(str) {
+    function parseNumero(str) {
         let numero = str.replace(/[^\d,]/g, '').replace(',', '.');
         return parseFloat(numero);
     }
 
-    const somaOriginal = parseMoeda(somaOriginalStr);
-    const somaDesejada = parseMoeda(somaDesejadaStr);
+    const somaOriginal = parseNumero(somaOriginalStr);
+    const somaDesejada = parseNumero(somaDesejadaStr);
 
     if (somaOriginal === 0) {
         alert("A soma original é zero. Não é possível calcular a proporção de ajuste.");
@@ -68,22 +101,41 @@ function processarArquivo() {
     btn.innerText = "Processando...";
     btn.disabled = true;
 
+    const modo = getModoAjuste();
+
     const reader = new FileReader();
     reader.onload = function(e) {
         const text = e.target.result;
         const isCRLF = text.includes('\r\n');
         const lines = text.split(/\r?\n/);
         
-        let somaOriginalInt = 0;
+        let somaFinanceiraOriginalInt = 0;
+        let somaQuantidadeOriginalInt = 0;
+
         for (let i = 0; i < lines.length; i++) {
             if (lines[i].startsWith("74") && lines[i].length >= 50) {
-                somaOriginalInt += parseInt(lines[i].substring(37, 50), 10);
+                somaQuantidadeOriginalInt += parseInt(lines[i].substring(24, 37), 10);
+                somaFinanceiraOriginalInt += parseInt(lines[i].substring(37, 50), 10);
             }
         }
 
-        const somaDesejadaInt = Math.round(somaDesejada * 100);
-        let somaAcumuladaOriginal = 0;
-        let somaAcumuladaDesejada = 0;
+        const somaFinanceiraDesejadaInt = Math.round(somaDesejada * 100);
+        let somaQuantidadeDesejadaInt = somaQuantidadeOriginalInt;
+
+        if (modo === 'quantidade') {
+            const fatorFinanceiro = somaFinanceiraOriginalInt > 0 ? (somaFinanceiraDesejadaInt / somaFinanceiraOriginalInt) : 0;
+            somaQuantidadeDesejadaInt = Math.round(somaQuantidadeOriginalInt * fatorFinanceiro);
+            
+            const step = 1000;
+            const totalDesejadoSteps = Math.round(somaQuantidadeDesejadaInt / step);
+            somaQuantidadeDesejadaInt = totalDesejadoSteps * step;
+        }
+        
+        let somaAcumuladaFinanceiraOriginal = 0;
+        let somaAcumuladaFinanceiraDesejada = 0;
+
+        let somaAcumuladaQuantidadeOriginal = 0;
+        let somaAcumuladaQuantidadeDesejada = 0;
 
         let outputLines = [];
 
@@ -91,20 +143,50 @@ function processarArquivo() {
             let linha = lines[i];
             
             if (linha.startsWith("74") && linha.length >= 50) {
-                let prefixo = linha.substring(0, 37);
+                let prefixo = linha.substring(0, 24);
+                let qtdOriginalStr = linha.substring(24, 37);
                 let valorOriginalStr = linha.substring(37, 50);
                 let sufixo = linha.substring(50);
 
+                let qtdOriginalInt = parseInt(qtdOriginalStr, 10);
                 let valorOriginalInt = parseInt(valorOriginalStr, 10);
-                somaAcumuladaOriginal += valorOriginalInt;
+
+                somaAcumuladaQuantidadeOriginal += qtdOriginalInt;
+                somaAcumuladaFinanceiraOriginal += valorOriginalInt;
                 
-                let somaAcumuladaIdeal = Math.round((somaAcumuladaOriginal / somaOriginalInt) * somaDesejadaInt);
-                let novoValorInt = somaAcumuladaIdeal - somaAcumuladaDesejada;
+                let novaQtdInt = qtdOriginalInt;
+                let novoValorInt = valorOriginalInt;
                 
-                somaAcumuladaDesejada += novoValorInt;
+                if (modo === 'quantidade') {
+                    let somaAcumuladaQtdIdeal = 0;
+                    if (somaQuantidadeOriginalInt > 0) {
+                        const step = 1000;
+                        const totalSteps = Math.round(somaQuantidadeDesejadaInt / step);
+                        somaAcumuladaQtdIdeal = Math.round((somaAcumuladaQuantidadeOriginal / somaQuantidadeOriginalInt) * totalSteps) * step;
+                    }
+                    novaQtdInt = somaAcumuladaQtdIdeal - somaAcumuladaQuantidadeDesejada;
+                    somaAcumuladaQuantidadeDesejada += novaQtdInt;
+
+                    let somaAcumuladaFinIdeal = 0;
+                    if (somaQuantidadeDesejadaInt > 0) {
+                        somaAcumuladaFinIdeal = Math.round((somaAcumuladaQuantidadeDesejada / somaQuantidadeDesejadaInt) * somaFinanceiraDesejadaInt);
+                    } else if (somaFinanceiraOriginalInt > 0) {
+                        somaAcumuladaFinIdeal = Math.round((somaAcumuladaFinanceiraOriginal / somaFinanceiraOriginalInt) * somaFinanceiraDesejadaInt);
+                    }
+                    novoValorInt = somaAcumuladaFinIdeal - somaAcumuladaFinanceiraDesejada;
+                    somaAcumuladaFinanceiraDesejada += novoValorInt;
+                } else {
+                    let somaAcumuladaFinIdeal = 0;
+                    if (somaFinanceiraOriginalInt > 0) {
+                        somaAcumuladaFinIdeal = Math.round((somaAcumuladaFinanceiraOriginal / somaFinanceiraOriginalInt) * somaFinanceiraDesejadaInt);
+                    }
+                    novoValorInt = somaAcumuladaFinIdeal - somaAcumuladaFinanceiraDesejada;
+                    somaAcumuladaFinanceiraDesejada += novoValorInt;
+                }
+
+                let novaQtdStr = novaQtdInt.toString().padStart(13, '0');
                 let novoValorStr = novoValorInt.toString().padStart(13, '0');
-                
-                linha = prefixo + novoValorStr + sufixo;
+                linha = prefixo + novaQtdStr + novoValorStr + sufixo;
             }
             
             outputLines.push(linha);
